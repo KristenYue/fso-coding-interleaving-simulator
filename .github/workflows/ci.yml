@@ -1,0 +1,22 @@
+name: source-validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify code-only public tree
+        run: python tools/validate_repository.py
+      - name: Compile every experiment
+        run: python -m compileall -q primary_experiments replication tools

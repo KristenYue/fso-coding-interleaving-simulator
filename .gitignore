@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Generated simulation outputs
+results/
+data/
+figures/
+logs/
+*.csv
+*.npz
+*.png
+*.svg
+*.pdf
+
+# Local IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
