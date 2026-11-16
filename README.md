@@ -588,14 +588,10 @@ reedsolo
 pyldpc
 ```
 
+
 ## 2. 从信道验证开始
 
-```powershell
-Set-Location primary_experiments
-..\ .venv\Scripts\python.exe 01_channel_model_validation.py
-```
-
-如果 PowerShell 不接受上面的相对路径空格写法，可直接使用：
+完成上一步的依赖安装后，在仓库根目录执行：
 
 ```powershell
 Set-Location primary_experiments
