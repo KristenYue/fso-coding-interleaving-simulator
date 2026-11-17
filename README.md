@@ -1,20 +1,20 @@
 # FSO 编码与交织仿真平台
 
 [![源码验证](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/Python-3.10%20--%203.12-3776AB)
-![NumPy](https://img.shields.io/badge/数值计算-NumPy-013243)
-![SciPy](https://img.shields.io/badge/科学计算-SciPy-8CAAE6)
-![RS/LDPC](https://img.shields.io/badge/信道编码-RS%20%7C%20LDPC-00599C)
-![Monte Carlo](https://img.shields.io/badge/实验方法-Monte%20Carlo-6A5ACD)
 [![开源许可](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-该项目为开发者硕士毕业设计，面向自由空间光通信（Free-Space Optical Communication，FSO）的编码、交织与湍流信道仿真平台。
+**硕士毕业设计代码 · Python · NumPy / SciPy · 蒙特卡洛仿真 · RS / LDPC**
 
-项目围绕 IM/DD OOK 光通信链路，建模 AWGN、Gamma–Gamma 大气湍流、指向误差和固定相干块衰落，对比 Reed–Solomon 与 LDPC 编码在不同交织深度和信道相干条件下的误码性能、缓存代价和解码复杂度。
+面向自由空间光通信（FSO）链路，构建带大气湍流和指向误差的光通信仿真。研究在相近码率和相同信道条件下，RS、LDPC 与不同交织深度如何影响**误码率、缓存需求和解码开销**。
 
-> 核心目标：建立一条从信道模型验证、编解码器验证、编码链路仿真、统计分析到独立复现的完整实验链，避免未经验证的组件直接进入最终性能对比。
+大气湍流会使相邻数据帧经历相似的衰落。若同时改变交织深度和物理信道相干长度，就很难判断误码率变化来自交织策略，还是来自信道条件。项目先建立未编码链路基线并验证编解码器，再固定物理相干长度，单独扫描交织深度。
 
----
+## 仿真链路
+
+```text
+信息比特 → RS / LDPC 编码 → 交织 → OOK 调制
+        → Gamma–Gamma 湍流 + 指向误差 + AWGN
+        → 解调 → 解交织 → 解码 → BER 与开销统计
 
 ## 10 秒了解项目
 
