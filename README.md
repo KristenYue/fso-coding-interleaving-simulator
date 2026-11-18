@@ -1,814 +1,140 @@
-# FSO 编码与交织仿真平台
+# Communication Systems Research — 无线光通信系统建模与编码研究
 
-[![源码验证](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml)
-[![开源许可](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Source validation](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml)
 
-**硕士毕业设计代码 · Python · NumPy / SciPy · 蒙特卡洛仿真 · RS / LDPC**
+## Project Overview
 
-面向自由空间光通信（FSO）链路，构建带大气湍流和指向误差的光通信仿真。研究在相近码率和相同信道条件下，RS、LDPC 与不同交织深度如何影响**误码率、缓存需求和解码开销**。
+用于研究 IM/DD OOK 自由空间光通信链路中信道编码、交织深度和信道相干长度关系的 Python 仿真系统。模型组合 AWGN、Gamma–Gamma 大气湍流、零视轴指向误差和固定相干块衰落，并比较码率匹配的 Reed–Solomon 与 LDPC 方案。
 
-大气湍流会使相邻数据帧经历相似的衰落。若同时改变交织深度和物理信道相干长度，就很难判断误码率变化来自交织策略，还是来自信道条件。项目先建立未编码链路基线并验证编解码器，再固定物理相干长度，单独扫描交织深度。
+项目体现通信工程背景和可复现实验能力，为工业 AI 应用中的链路认知、无线数据质量和通信系统建模提供领域基础；它不是 Agent 或设备控制项目。
 
-## 仿真链路
+## Application Scenarios
 
-```text
-信息比特 → RS / LDPC 编码 → 交织 → OOK 调制
-        → Gamma–Gamma 湍流 + 指向误差 + AWGN
-        → 解调 → 解交织 → 解码 → BER 与开销统计
-```
----
-## 核心工程设计
-
-| 工程问题 | 实现方式 | 能从实验中判断什么 |
-| --- | --- | --- |
-| **两种编码怎样做公平对照？** | 使用近似码率的 RS(255,223) 和 LDPC(512,449)，统一 `Eb/N0` 口径，并保留未编码链路作为基线。 | 在相近冗余开销下，比较两种方案的误码表现。 |
-| **怎样单独衡量交织的影响？** | 把交织深度 `D` 与物理信道相干长度 `Lc` 设为独立参数。固定 `Lc` 后扫描 `D`，同时记录误码和缓存代价。 | 在同一衰落条件下，判断增加交织深度带来的收益和资源开销。 |
-| **同一衰落块里的样本如何统计？** | 记录随机种子和实验参数。对相关衰落场景采用分组感知的区间估计，零误码场景给出统计上界。 | 报告估计的不确定性，避免把有限样本的零误码解释为误码率为零。 |
-| **结论怎样复查？** | 将信道基线、RS 和 LDPC 编解码验证、交织扫描、最终对照拆为不同任务，同时保留独立实现的复现路径。 | 从组件验证逐步重建最终对照，也可以单独检查关键假设。 |
-
-## 实验规模与复现入口
-
-- **14 个主实验脚本**，覆盖信道基线、编解码验证、交织扫描和最终对照。
-- **12 个独立复现模块**，用于核查关键建模与对照步骤。
-- **7 个工程 Bad Case**，记录实验过程中发现的问题与处理方式。
-- **对照码率约为 0.8745 与 0.8770**，分别对应 RS(255,223) 与 LDPC(512,449)。
-
-公开仓库提供实验源码、运行入口和模型说明。CSV、NPZ 和图表由脚本在本地运行生成。[实验地图与运行顺序](docs/EXPERIMENT_MAP.md)
-
----
-
-## 10 秒了解项目
-
-```text
-AWGN 基准验证
-      │
-      ▼
-Gamma–Gamma 湍流与指向误差
-      │
-      ▼
-未编码 FSO 误码基线
-      │
-      ├───────────────┐
-      ▼               ▼
-RS 编解码验证      LDPC 编解码验证
-      │               │
-      ▼               ▼
-固定相干信道 + 交织深度扫描
-      │               │
-      └───────┬───────┘
-              ▼
-      码率匹配的 RS/LDPC 对比
-              │
-              ▼
-       编码增益与湍流敏感性
-              │
-              ▼
-        独立实现路径复现
-```
-
-项目重点研究四个问题：
-
-1. 不同码率的 RS 和 LDPC 如何进行公平的 `Eb/N0` 对比；
-2. 交织深度 `D` 与物理信道相干长度 `Lc` 如何独立控制；
-3. 同一衰落组内的相关帧如何计算可信的统计区间；
-4. 主实验结论能否通过独立实现的信道与编解码路径进行复现。
-
----
-
-# 工程规模
-
-| 维度 | 当前内容 |
-|---|---:|
-| 主实验脚本 | **14 个** |
-| 独立复现模块 | **12 个** |
-| 实验链阶段 | **Task 01–10** |
-| 已记录 Bad Case | **7 个** |
-| RS 编码 | **RS(255,223)** |
-| RS 码率 | **约 0.8745** |
-| LDPC 编码 | **LDPC(512,449)** |
-| LDPC 码率 | **约 0.8770** |
-| 信道组件 | AWGN、Gamma–Gamma、指向误差、固定相干衰落 |
-| 统计方法 | Wilson 区间、零误码上界、分组感知区间 |
-| 可复现机制 | 固定随机种子、条件派生种子、断点续跑 |
-| 自动检查 | 源码边界验证 + 全部实验模块编译检查 |
-
-公开仓库包含完整实验源码和复现入口。CSV、NPZ、图片等生成结果由脚本在本地运行后产生，并保存在 Git 忽略目录中。
-
----
-
-# 系统模型
-
-## FSO 链路
-
-项目研究的基本链路为：
-
-```text
-信息比特
-   ↓
-RS 或 LDPC 编码
-   ↓
-交织
-   ↓
-OOK 调制
-   ↓
-Gamma–Gamma 湍流
-   +
-指向误差
-   +
-AWGN
-   ↓
-解交织
-   ↓
-RS 或 LDPC 解码
-   ↓
-BER、置信区间与复杂度分析
-```
-
-接收信号可以抽象为：
-
-```text
-y = h × x + n
-```
-
-其中：
-
-- `x`：OOK 调制后的发送符号；
-- `h`：由大气湍流、指向误差和相干结构共同决定的信道增益；
-- `n`：加性高斯白噪声；
-- `y`：接收信号。
-
-## 信道模型
-
-| 模型 | 工程作用 |
+| 研究问题 | 仿真能力 |
 |---|---|
-| AWGN | 建立无衰落参考，独立验证编解码器 |
-| Gamma–Gamma | 描述不同湍流强度下的光强起伏 |
-| 零偏置指向误差 | 模拟光束抖动与接收孔径耦合损失 |
-| 固定相干块衰落 | 控制一段连续符号共享同一衰落增益 |
-| 未编码链路 | 提供编码增益对比基线 |
+| 湍流与指向误差如何改变 BER | 独立信道组件验证与组合链路 |
+| 交织深度如何匹配相干长度 | 独立控制 `D` 与 `Lc` 的固定相干衰落实验 |
+| 不同码率如何公平比较 | 基于信息比特 `Eb/N0` 的归一化 |
+| RS 与 LDPC 的可靠性/复杂度取舍 | 码率匹配编码、目标 BER 与所需 SNR 比较 |
+| 共享衰落样本如何估计不确定性 | 分组感知置信区间与零错误上界 |
 
-各信道组件先独立验证，再组合进入完整编码链路。
+## Features & Real Demonstration
 
----
+### 完整实验链
 
-# 完整实验链
-
-## Task 01：信道组件验证
-
-入口：
-
-```text
-primary_experiments/01_channel_model_validation.py
+```mermaid
+flowchart LR
+    C[信道组件验证] --> U[未编码 BER]
+    U --> R[RS / LDPC 编码验证]
+    R --> I[固定相干交织扫描]
+    I --> A[所需 SNR 与编码增益]
+    A --> T[湍流敏感性]
+    T --> P[独立 NumPy 复现]
 ```
 
-验证：
+| 阶段 | 入口 | 作用 |
+|---:|---|---|
+| 01 | `01_channel_model_validation.py` | 验证 AWGN、Gamma–Gamma 和指向误差 |
+| 02 | `02_uncoded_fso_ber.py` | 建立未编码链路基线 |
+| 03 | `03_rs_awgn_validation.py` | 在引入衰落前验证 RS 行为 |
+| 04 | `04c_*` / `04d_*` | 在两种固定相干长度下扫描 RS 交织 |
+| 05 | `05_rs_coherence_depth_analysis.py` | 分析 BER、所需 SNR 与深度取舍 |
+| 06 | `06_ldpc_awgn_validation.py` | 构造并验证码率匹配 LDPC |
+| 07 | `07b_ldpc_fso_group_aware_refinement.py` | 在匹配信道上运行 LDPC |
+| 08 | `08_rs_ldpc_final_comparison.py` | 比较 RS/LDPC 工作点 |
+| 09 | `09_uncoded_fixed_coherence_coding_gain.py` | 计算匹配信道编码增益 |
+| 10 | `10_turbulence_sensitivity.py` | 比较不同湍流条件 |
 
-- AWGN 参考链路；
-- Gamma–Gamma 随机采样；
-- 理论矩与样本矩的一致性；
-- 指向误差采样；
-- 组合信道的基础统计性质。
+## System Architecture
 
-目的：
-
-> 在引入编码和交织之前，先确认信道随机变量的生成与理论假设一致。
-
----
-
-## Task 02：未编码 FSO 基线
-
-入口：
-
-```text
-primary_experiments/02_uncoded_fso_ber.py
+```mermaid
+flowchart TB
+    P[Experiment Parameters\nseed · Eb/N0 · D · Lc] --> M[Channel Model]
+    M --> A[AWGN]
+    M --> G[Gamma-Gamma Turbulence]
+    M --> E[Pointing Error]
+    M --> F[Fixed-coherence Fading]
+    A --> L[IM/DD OOK Link]
+    G --> L
+    E --> L
+    F --> L
+    L --> C[RS / LDPC Codec]
+    C --> S[BER · Confidence Interval · Required SNR]
+    S --> R[Stored CSV / Analysis]
+    R --> X[Independent Replication]
 ```
 
-建立未编码 OOK 链路的 BER 基线，用于后续判断：
+## Core Implementation
 
-- 编码是否产生有效增益；
-- 湍流对链路性能的影响；
-- 指向误差是否改变性能趋势；
-- 后续结果是否偏离合理数量级。
-
----
-
-## Task 03：RS 编码 AWGN 验证
-
-入口：
-
-```text
-primary_experiments/03_rs_awgn_validation.py
-```
-
-在没有湍流衰落的 AWGN 环境中验证：
-
-- RS(255,223) 编码；
-- 解码往返一致性；
-- 可纠正错误数量边界；
-- 码率归一化；
-- BER 随 `Eb/N0` 的基本趋势。
-
-先在简单信道中验证 RS，可以避免将编解码错误误认为湍流影响。
-
----
-
-## Task 04：RS 编码与交织实验
-
-相关入口：
-
-```text
-04_rs_fso_interleaving.py
-04_rs_fso_symbol_interleaving.py
-04c_rs_fso_fixed_coherence_interleaving.py
-04d_rs_fso_fixed_coherence32_interleaving.py
-```
-
-核心实验变量：
-
-- 交织深度 `D`；
-- 信道相干长度 `Lc`；
-- `Eb/N0`；
-- 湍流强度；
-- 指向误差；
-- RS 解码结果。
-
-最终分析使用 Task 04C/04D，因为它们将物理相干长度固定，再单独扫描交织深度。
-
----
-
-## Task 05：相干长度与交织深度分析
-
-入口：
-
-```text
-primary_experiments/05_rs_coherence_depth_analysis.py
-```
-
-将 BER 曲线转化为：
-
-- 目标 BER 下所需的 `Eb/N0`；
-- 不同交织深度的收益；
-- 交织深度的边际收益；
-- 缓存需求；
-- 延迟与性能之间的取舍。
-
-该阶段关注的不只是“深交织性能更好”，还要回答：
-
-> 交织深度增加到什么程度后，额外缓存和延迟只带来很小收益？
-
----
-
-## Task 06：LDPC 编码 AWGN 验证
-
-入口：
-
-```text
-primary_experiments/06_ldpc_awgn_validation.py
-```
-
-验证：
-
-- LDPC(512,449) 结构；
-- 校验矩阵约束；
-- 编码与解码往返；
-- 无噪声正确恢复；
-- AWGN 中的性能趋势；
-- 与 RS 接近的有效码率。
-
-LDPC 码率约为 0.8770，与 RS(255,223) 的约 0.8745 接近，从而降低冗余差异对编码对比的影响。
-
----
-
-## Task 07：LDPC 固定相干信道实验
-
-相关入口：
-
-```text
-07_ldpc_fso_fixed_coherence_interleaving.py
-07b_ldpc_fso_group_aware_refinement.py
-```
-
-Task 07B 在固定相干信道中运行 LDPC，并保留：
-
-- 交织组；
-- 共享衰落关系；
-- 独立组边界；
-- 分组误码统计；
-- 分组感知置信区间。
-
-最终对比使用 Task 07B。
-
----
-
-## Task 08：RS 与 LDPC 最终对比
-
-入口：
-
-```text
-primary_experiments/08_rs_ldpc_final_comparison.py
-```
-
-在接近码率和匹配信道条件下比较：
-
-- BER；
-- 所需 `Eb/N0`；
-- 交织深度；
-- 缓存需求；
-- 解码复杂度；
-- 不同湍流条件下的稳定性。
-
-该实验避免只比较某一个最佳工作点，而是同时展示性能与工程代价。
-
----
-
-## Task 09：匹配信道下的编码增益
-
-入口：
-
-```text
-primary_experiments/09_uncoded_fixed_coherence_coding_gain.py
-```
-
-在相同固定相干信道下建立未编码对照，避免将以下差异错误计入编码增益：
-
-- 信道模型不同；
-- 相干长度不同；
-- 随机样本不同；
-- `Eb/N0` 定义不同。
-
----
-
-## Task 10：湍流敏感性
-
-入口：
-
-```text
-primary_experiments/10_turbulence_sensitivity.py
-```
-
-将选定的 RS、LDPC 和交织配置放入不同湍流强度，分析：
-
-- 性能排序是否稳定；
-- 最优交织深度是否变化；
-- 编码方案是否对信道参数敏感；
-- 在更强湍流下是否出现误码平台。
-
----
-
-# 四个核心技术设计
-
-## 1. 码率归一化的 RS/LDPC 公平比较
-
-### Bad Case
-
-如果直接在相同的发送比特信噪比下比较不同码率编码：
-
-```text
-RS 码率 ≠ LDPC 码率
-        ↓
-每个信息比特承担的能量不同
-        ↓
-冗余差异被误认为编码结构增益
-```
-
-### 解决方案
-
-项目选择码率接近的编码：
-
-```text
-RS(255,223)    R ≈ 0.8745
-LDPC(512,449)  R ≈ 0.8770
-```
-
-并以信息比特 `Eb/N0` 为统一对比口径，在噪声方差计算中显式考虑码率。
-
-同时使用共同随机数进行部分对比，使不同方案尽量经历相同的信道随机条件，减少由样本差异造成的比较噪声。
-
----
-
-## 2. 将交织深度与信道相干长度解耦
-
-### Bad Case
-
-如果改变交织深度时同时改变信道衰落结构：
-
-```text
-D 增加
-  +
-Lc 同时变化
-  ↓
-BER 发生改善
-  ↓
-无法判断改善来自交织还是信道变化
-```
-
-### 解决方案
-
-最终实验固定物理相干长度 `Lc`，独立扫描交织深度 `D`：
-
-```text
-固定 Lc
-   ↓
-D = 1, 2, 4, ...
-   ↓
-比较相同信道条件下的 BER
-```
-
-这样能够单独分析：
-
-- 交织带来的时间/空间分散收益；
-- 信道相干性对编码帧的影响；
-- `D/Lc` 关系；
-- 深交织的边际收益。
-
----
-
-## 3. 相关帧的分组感知置信区间
-
-### Bad Case
-
-同一个交织组中的多个帧可能共享相同衰落增益。
-
-如果把所有帧或比特都当作独立 Bernoulli 样本：
-
-```text
-相关样本被当作独立样本
-        ↓
-有效样本数量被高估
-        ↓
-置信区间过窄
-        ↓
-结果看起来比实际更稳定
-```
-
-### 解决方案
-
-项目保留独立衰落组边界，并同时考虑：
-
-- Wilson 置信区间；
-- 独立组数量；
-- 组间误码变化；
-- 共享衰落造成的相关性；
-- 分组感知的不确定性。
-
-最终统计不仅报告总误码数，还保留误码来自多少个独立衰落组。
-
----
-
-## 4. 零观测误码不等于零 BER
-
-### Bad Case
-
-蒙特卡洛实验中没有观测到误码，并不能证明真实 BER 等于零。
-
-```text
-有限样本中观测错误数 = 0
-        ≠
-真实误码概率 = 0
-```
-
-### 解决方案
-
-对于零观测误码点：
-
-- 不直接将 BER 表示为数学意义上的零；
-- 报告有限样本下的上界；
-- 标记该点受仿真样本数量限制；
-- 避免在对数坐标中给出虚假的无限编码增益。
-
----
-
-# 独立复现实验
-
-主实验与复现实验使用不同的实现路径。
-
-```text
-主实验
-├── 库支持的 RS/LDPC 实现
-├── 主信道生成函数
-└── Task 01–10 分阶段分析
-
-独立复现
-├── 独立的信道与编解码路径
-├── 条件派生随机种子
-├── 独立结果文件
-└── 独立分析与制图入口
-```
-
-两条路径不共享生成结果，因此独立复现检查的是：
-
-> 不同实现是否得到一致的趋势，而不是用第二个脚本重新绘制同一份数据。
-
-## 复现模块
-
-| 文件 | 作用 |
+| 模块 | 实现 |
 |---|---|
-| `fso_lib.py` | 独立信道与编码基础实现 |
-| `calc_baseline.py` | 计算基准工作点 |
-| `run_rs_groupaware.py` | RS 分组感知实验 |
-| `run_task10.py` | 湍流敏感性复现 |
-| `run_supplementary.py` | 补充实验 |
-| `analyse_task10.py` | Task 10 独立分析 |
-| `make_task_map.py` | 生成实验关系图 |
-| `make_causal_chain.py` | 生成因果关系分析 |
-| `make_fig4_1.py` | 生成对应实验图 |
-| `make_fig4_3.py` | 生成对应实验图 |
-| `make_fig67.py` | 生成 RS/LDPC 对比图 |
-| `qfunc.py` | Q 函数与辅助计算 |
+| Channel | AWGN reference、Gamma–Gamma sampling/moments、pointing error、fixed-coherence fading |
+| Coding | RS(255,223) bounded-error checks；LDPC(512,449) parity 与无噪声往返检查 |
+| Interleaving | 位/符号交织，`D` 与 `Lc` 独立控制 |
+| Statistics | Wilson 区间、零错误上界、分组区间、common random numbers |
+| Reproducibility | 固定主种子、条件子流、可恢复扫描、结果与分析分离 |
+| Replication | 与主实验库路径分离的 NumPy codec/channel 实现 |
 
----
+## Engineering Results
 
-# 可复现性设计
+- 将编码前后的能量归一到信息比特 `Eb/N0`，避免不同码率的不公平比较。
+- 将交织深度与物理相干长度分离，避免把独立快衰落误当作固定相干信道。
+- 当多个帧共享同一衰落实现时，使用 group-aware 区间处理样本相关性。
+- 长时间扫描按完成条件追加结果并支持重启跳过，避免中断后从头计算。
+- 主实验与独立复现路径结构分离，用于检查结论是否依赖单一库实现。
 
-## 固定随机种子
+## Industry Applications
 
-主实验使用显式主种子，并为不同条件生成独立随机流，避免多个实验条件意外复用完全相同的随机序列。
+- **半导体与 AI 芯片：** 通信算法原型、链路仿真、编码与统计分析工具。
+- **智能汽车：** 无线/光通信链路建模方法、信道质量与数据可靠性分析。
+- **具身智能：** 机器人无线链路与传感数据通信研究中的建模基础。
 
-## 条件派生种子
+这些是研究方法的迁移方向；仓库没有实现车载通信、机器人通信或真实 FSO 硬件部署。
 
-复现实验不使用 Python 内置 `hash()`。
-
-因为内置 Hash 可能随进程和 `PYTHONHASHSEED` 改变。
-
-项目使用：
-
-```text
-CRC32(明确的实验条件字符串)
-```
-
-派生每个实验条件的确定性种子。
-
-相同条件在不同进程中仍能得到相同种子。
-
-## 断点续跑
-
-长时间蒙特卡洛扫描会在每个条件完成后立即追加结果。
-
-重新启动时：
-
-```text
-读取已有结果
-    ↓
-识别已完成条件
-    ↓
-跳过已完成点
-    ↓
-继续剩余实验
-```
-
-避免因进程中断重新运行整个参数空间。
-
-## 分离仿真与分析
-
-分析脚本读取已保存结果，不会在绘图时静默重新执行长时间仿真。
-
-这使以下过程相互独立：
-
-```text
-生成数据
-→ 冻结结果
-→ 统计分析
-→ 制图
-```
-
----
-
-# 快速运行
-
-## 环境要求
-
-推荐：
-
-- Python 3.10–3.12
-- Git
-- 支持 NumPy/SciPy 的本地环境
-
-## 1. 创建虚拟环境
-
-### Windows PowerShell
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-### Linux
+## Quick Start
 
 ```bash
 python -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-主要依赖：
+先运行组件验证，再决定是否启动计算量较大的扫描：
 
-```text
-NumPy
-SciPy
-Matplotlib
-reedsolo
-pyldpc
+```bash
+cd primary_experiments
+python 01_channel_model_validation.py
+python 03_rs_awgn_validation.py
 ```
 
+独立复现路径：
 
-## 2. 从信道验证开始
-
-完成上一步的依赖安装后，在仓库根目录执行：
-
-```powershell
-Set-Location primary_experiments
-& "..\.venv\Scripts\python.exe" "01_channel_model_validation.py"
+```bash
+cd replication
+python fso_lib.py
+python calc_baseline.py Moderate
 ```
 
-运行未编码基线：
+## Evidence & Source Code
 
-```powershell
-& "..\.venv\Scripts\python.exe" "02_uncoded_fso_ber.py"
-```
-
-运行 RS AWGN 验证：
-
-```powershell
-& "..\.venv\Scripts\python.exe" "03_rs_awgn_validation.py"
-```
-
-运行 LDPC AWGN 验证：
-
-```powershell
-& "..\.venv\Scripts\python.exe" "06_ldpc_awgn_validation.py"
-```
-
-## 3. 运行独立复现入口
-
-```powershell
-Set-Location ..\replication
-& "..\.venv\Scripts\python.exe" "fso_lib.py"
-& "..\.venv\Scripts\python.exe" "calc_baseline.py" "Moderate"
-```
-
-正式 Task 04–10 包含蒙特卡洛参数扫描，运行时间明显高于组件验证任务。建议先检查脚本中的参数、随机种子和输出目录，再启动完整实验。
-
----
-
-# 推荐实验顺序
-
-第一次阅读或运行时，建议按照以下顺序：
-
-```text
-01_channel_model_validation.py
-    ↓
-02_uncoded_fso_ber.py
-    ↓
-03_rs_awgn_validation.py
-    ↓
-06_ldpc_awgn_validation.py
-    ↓
-04c/04d RS 固定相干实验
-    ↓
-07b LDPC 分组感知实验
-    ↓
-08_rs_ldpc_final_comparison.py
-    ↓
-09_uncoded_fixed_coherence_coding_gain.py
-    ↓
-10_turbulence_sensitivity.py
-    ↓
-replication/
-```
-
-这样任何异常都可以先在更小的模型边界中定位。
-
----
-
-# Bad Case 与工程闭环
-
-| 编号 | 发现的问题 | 影响 | 工程改进 |
-|---|---|---|---|
-| BC-001 | 不同码率使用不一致的 `Eb/N0` | 冗余差异被误认为编码增益 | 信息比特口径与码率感知噪声 |
-| BC-002 | 交织深度与信道相干长度混合变化 | 无法分离设计变量影响 | 固定 `Lc`，独立扫描 `D` |
-| BC-003 | 将相关帧当作独立样本 | 置信区间过度乐观 | 保留独立组边界并计算分组区间 |
-| BC-004 | `uint8` 数组直接相减 | 负数回绕并污染误码统计 | 比较前转换为有符号整数 |
-| BC-005 | 零观测错误直接写成零 BER | 有限样本被误认为零概率 | 报告有限样本上界 |
-| BC-006 | 使用 Python `hash()` 派生种子 | 不同进程结果不一致 | 使用 CRC32 条件种子 |
-| BC-007 | 长仿真结束时才保存结果 | 中断后丢失全部进度 | 每个条件完成后追加并支持跳过 |
-
-完整记录见 [Bad Cases](docs/BAD_CASES.md)。
-
----
-
-# CI 与公开源码检查
-
-GitHub Actions 执行两类检查。
-
-## 1. 公开源码边界验证
-
-`tools/validate_repository.py` 会拒绝：
-
-- PDF、Word、PPT 等文档；
-- CSV、NPZ 等生成数据；
-- PNG、JPG、SVG 等生成图片；
-- 意外二进制文件；
-- 私钥；
-- AWS Access Key；
-- GitHub Token；
-- API Key 特征字符串。
-
-这样可以保证公开仓库保持为干净的代码复现包。
-
-## 2. 全量源码编译检查
-
-CI 对以下目录执行：
-
-```text
-primary_experiments/
-replication/
-tools/
-```
-
-并编译全部 Python 模块，检查：
-
-- 语法错误；
-- 不完整文件；
-- 导入阶段的基础问题；
-- 公开代码树是否可被 Python 解析。
-
-CI 不运行完整蒙特卡洛扫描，避免将长时间研究实验作为每次提交的常规流水线任务。
-
----
-
-# 工程证据索引
-
-| 想了解的内容 | 对应文件 |
+| 内容 | 入口 |
 |---|---|
-| Task 01–10 的依赖关系 | [实验地图](docs/EXPERIMENT_MAP.md) |
-| 关键模型和统计取舍 | [工程日志](docs/ENGINEERING_LOG.md) |
-| 实验过程中发现的问题 | [Bad Cases](docs/BAD_CASES.md) |
-| 主实验代码 | [primary_experiments](primary_experiments/) |
-| 独立复现代码 | [replication](replication/) |
-| 公开源码检查 | [validate_repository.py](tools/validate_repository.py) |
-| Python 依赖 | [requirements.txt](requirements.txt) |
-| CI 配置 | [GitHub Actions](.github/workflows/ci.yml) |
+| 主实验链 | [primary_experiments](primary_experiments) |
+| 独立复现 | [replication](replication) |
+| 实验地图 | [EXPERIMENT_MAP.md](docs/EXPERIMENT_MAP.md) |
+| 工程决策 | [ENGINEERING_LOG.md](docs/ENGINEERING_LOG.md) |
+| 失败案例 | [BAD_CASES.md](docs/BAD_CASES.md) |
+| 公开来源与隐私检查 | [tools](tools) |
 
----
+## Validation & Limitations
 
-# 仓库结构
+- 这是代码公开版；生成的 CSV、图片、论文和演示文档不在仓库中。
+- 正式 Monte Carlo 扫描计算量较大，Quick Start 只运行组件验证。
+- 统计区间和固定种子提高可复现性，但不能替代真实光学链路实验。
+- 信道模型包含明确假设，不覆盖所有天气、平台抖动、硬件非线性和接收机实现。
+- 独立复现降低单一实现依赖，但仍属于软件仿真，不是第三方实验室验证。
 
-```text
-fso-coding-interleaving-simulator/
-├── primary_experiments/
-│   ├── 01_channel_model_validation.py
-│   ├── 02_uncoded_fso_ber.py
-│   ├── 03_rs_awgn_validation.py
-│   ├── 04*_rs_fso_*.py
-│   ├── 05_rs_coherence_depth_analysis.py
-│   ├── 06_ldpc_awgn_validation.py
-│   ├── 07*_ldpc_fso_*.py
-│   ├── 08_rs_ldpc_final_comparison.py
-│   ├── 09_uncoded_fixed_coherence_coding_gain.py
-│   └── 10_turbulence_sensitivity.py
-├── replication/
-│   ├── fso_lib.py
-│   ├── calc_baseline.py
-│   ├── run_rs_groupaware.py
-│   ├── run_task10.py
-│   ├── run_supplementary.py
-│   └── make_*.py
-├── docs/
-│   ├── EXPERIMENT_MAP.md
-│   ├── ENGINEERING_LOG.md
-│   └── BAD_CASES.md
-├── tools/
-│   └── validate_repository.py
-├── requirements.txt
-└── .github/workflows/ci.yml
-```
+## License
 
----
-
-# 项目证明的工程能力
-
-本项目技术亮点：
-
-- 建立自由空间光通信链路模型；
-- 使用 Gamma–Gamma 分布模拟大气湍流；
-- 建模指向误差和固定相干块衰落；
-- 实现未编码、RS 和 LDPC 链路仿真；
-- 使用信息比特 `Eb/N0` 进行码率归一化比较；
-- 将交织深度与物理相干长度独立控制；
-- 识别相关样本对置信区间的影响；
-- 使用有限样本上界处理零观测误码；
-- 使用固定随机种子和共同随机数提高可复现性；
-- 使用断点续跑保护长时间蒙特卡洛实验；
-- 通过独立实现路径检查主要实验趋势；
-- 将研究脚本整理为可阅读、可执行和可检查的工程仓库。
-
----
-
-## 结果解释范围
-
-该仓库提供完整的仿真源码、实验链、统计方法和独立复现入口。具体数值结果由使用者在选定参数、随机种子和蒙特卡洛预算下运行生成。
-
-不同运行环境、样本数量和停止条件可能影响置信区间宽度，因此实验对比应同时保留参数、随机种子、有效样本数和统计区间。
-
-## 开源许可
-
-本项目使用 [MIT License](LICENSE)。
+[MIT](LICENSE)
