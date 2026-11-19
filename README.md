@@ -1,36 +1,33 @@
-# Communication Systems Research — 无线光通信系统建模与编码研究
+# 自由空间光通信编码与交织仿真
 
-[![Source validation](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/KristenYue/fso-coding-interleaving-simulator/actions/workflows/ci.yml)
+![项目能力与执行流程](docs/assets/overview.gif)
 
-## Project Overview
+<sub>架构流程示意动画 · [静态版本](docs/assets/overview.png) · 动画不作为实测结果。</sub>
 
-用于研究 IM/DD OOK 自由空间光通信链路中信道编码、交织深度和信道相干长度关系的 Python 仿真系统。模型组合 AWGN、Gamma–Gamma 大气湍流、零视轴指向误差和固定相干块衰落，并比较码率匹配的 Reed–Solomon 与 LDPC 方案。
+[返回技术作品集](https://github.com/KristenYue/KristenYue) · [机器人业务](https://github.com/KristenYue/telecom-network-incident-agent/blob/main/docs/ROBOT_DELIVERY.md) · [原生模型 SDK](https://github.com/KristenYue/edge-device-verification-lab/tree/main/inference_sdk) · [车辆 Agent](https://github.com/KristenYue/telecom-network-incident-agent/blob/main/docs/VEHICLE_ADAPTER.md)
 
-项目体现通信工程背景和可复现实验能力，为工业 AI 应用中的链路认知、无线数据质量和通信系统建模提供领域基础；它不是 Agent 或设备控制项目。
 
-## Application Scenarios
+**Python · NumPy · Gamma–Gamma · RS / LDPC · Monte Carlo · 统计区间**
 
-| 研究问题 | 仿真能力 |
-|---|---|
-| 湍流与指向误差如何改变 BER | 独立信道组件验证与组合链路 |
-| 交织深度如何匹配相干长度 | 独立控制 `D` 与 `Lc` 的固定相干衰落实验 |
-| 不同码率如何公平比较 | 基于信息比特 `Eb/N0` 的归一化 |
-| RS 与 LDPC 的可靠性/复杂度取舍 | 码率匹配编码、目标 BER 与所需 SNR 比较 |
-| 共享衰落样本如何估计不确定性 | 分组感知置信区间与零错误上界 |
+对自由空间光通信链路建模，研究 **编码方案、交织深度和物理相干长度**的取舍。它为作品集提供通信专业基础与数值实验方法，设备 / AI 软件应用请先阅读 [主项目](https://github.com/KristenYue/telecom-network-incident-agent)。
 
-## Features & Real Demonstration
+## 核心方法与实验交付
 
-### 完整实验链
+| 实验难点 | 设计 | 能判断什么 |
+|---|---|---|
+| 两种编码公平对照 | RS(255,223) / LDPC(512,449)，码率约 **0.8745 / 0.8770**，统一信息比特 Eb/N0 | 相近冗余下的误码与复杂度差异 |
+| 分离交织与信道变化 | 交织深度 D 与相干长度 Lc 独立；固定 Lc 扫描 D | 交织收益与缓存开销，避免改变物理信道偷换对照 |
+| 相关样本统计 | 固定种子、分组感知区间、零误码上界 | 结论的不确定性及有限样本边界 |
+| 结论可复查 | **14 个主实验脚本 / 12 个独立复现模块 / 7 个工程 Bad Case** | 从组件检查逐步复现最终对照 |
 
-```mermaid
-flowchart LR
-    C[信道组件验证] --> U[未编码 BER]
-    U --> R[RS / LDPC 编码验证]
-    R --> I[固定相干交织扫描]
-    I --> A[所需 SNR 与编码增益]
-    A --> T[湍流敏感性]
-    T --> P[独立 NumPy 复现]
-```
+[实验地图](docs/EXPERIMENT_MAP.md) · [主实验](primary_experiments) · [独立复现](replication) · [工程日志](docs/ENGINEERING_LOG.md)
+
+公开仓库交付代码与方法；CSV、NPZ、图表由脚本生成。本页不填入尚无公开结果文件支持的编码增益数字。
+
+
+---
+
+## 实验地图与模块
 
 | 阶段 | 入口 | 作用 |
 |---:|---|---|
@@ -45,7 +42,7 @@ flowchart LR
 | 09 | `09_uncoded_fixed_coherence_coding_gain.py` | 计算匹配信道编码增益 |
 | 10 | `10_turbulence_sensitivity.py` | 比较不同湍流条件 |
 
-## System Architecture
+## 系统架构
 
 ```mermaid
 flowchart TB
@@ -64,7 +61,7 @@ flowchart TB
     R --> X[Independent Replication]
 ```
 
-## Core Implementation
+## 模块实现
 
 | 模块 | 实现 |
 |---|---|
@@ -75,23 +72,8 @@ flowchart TB
 | Reproducibility | 固定主种子、条件子流、可恢复扫描、结果与分析分离 |
 | Replication | 与主实验库路径分离的 NumPy codec/channel 实现 |
 
-## Engineering Results
 
-- 将编码前后的能量归一到信息比特 `Eb/N0`，避免不同码率的不公平比较。
-- 将交织深度与物理相干长度分离，避免把独立快衰落误当作固定相干信道。
-- 当多个帧共享同一衰落实现时，使用 group-aware 区间处理样本相关性。
-- 长时间扫描按完成条件追加结果并支持重启跳过，避免中断后从头计算。
-- 主实验与独立复现路径结构分离，用于检查结论是否依赖单一库实现。
-
-## Industry Applications
-
-- **半导体与 AI 芯片：** 通信算法原型、链路仿真、编码与统计分析工具。
-- **智能汽车：** 无线/光通信链路建模方法、信道质量与数据可靠性分析。
-- **具身智能：** 机器人无线链路与传感数据通信研究中的建模基础。
-
-这些是研究方法的迁移方向；仓库没有实现车载通信、机器人通信或真实 FSO 硬件部署。
-
-## Quick Start
+## 运行方法
 
 ```bash
 python -m venv .venv
@@ -116,7 +98,7 @@ python fso_lib.py
 python calc_baseline.py Moderate
 ```
 
-## Evidence & Source Code
+## 源码与证据
 
 | 内容 | 入口 |
 |---|---|
@@ -127,7 +109,7 @@ python calc_baseline.py Moderate
 | 失败案例 | [BAD_CASES.md](docs/BAD_CASES.md) |
 | 公开来源与隐私检查 | [tools](tools) |
 
-## Validation & Limitations
+## 实验口径与适用范围
 
 - 这是代码公开版；生成的 CSV、图片、论文和演示文档不在仓库中。
 - 正式 Monte Carlo 扫描计算量较大，Quick Start 只运行组件验证。
@@ -135,6 +117,6 @@ python calc_baseline.py Moderate
 - 信道模型包含明确假设，不覆盖所有天气、平台抖动、硬件非线性和接收机实现。
 - 独立复现降低单一实现依赖，但仍属于软件仿真，不是第三方实验室验证。
 
-## License
+## 许可
 
 [MIT](LICENSE)
